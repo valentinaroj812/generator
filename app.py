@@ -8,11 +8,9 @@ import io
 st.set_page_config(page_title="Generador de Equivalencias C21", layout="wide")
 st.title("🔄 Generador Automático de Equivalencias - CENTURY 21")
 
-# Subida de archivos
 excel_file = st.file_uploader("📤 Sube el archivo Excel generado por 21 Online", type=["xlsx"])
 links_file = st.file_uploader("🔗 Sube el archivo .txt con todos los links de oficinas", type=["txt"])
 
-# Función para extraer asesores desde la web
 def obtener_asesores_de_web(links):
     asesores_web = set()
     for url in links:
@@ -43,14 +41,17 @@ if excel_file and links_file:
 
         resultados = []
         for nombre in nombres_excel:
-            match, score = process.extractOne(nombre, nombres_web)
-            resultados.append([nombre, match if score >= 80 else ""])
+            coincidencia = process.extractOne(nombre, nombres_web)
+            if coincidencia:
+                match, score = coincidencia
+                resultados.append([nombre, match if score >= 80 else ""])
+            else:
+                resultados.append([nombre, ""])
 
         df_resultado = pd.DataFrame(resultados, columns=["Nombre en Excel", "Nombre en Web"])
         st.success("✅ Equivalencias generadas correctamente.")
         st.dataframe(df_resultado)
 
-        # Descargar resultado
         buffer = io.BytesIO()
         df_resultado.to_csv(buffer, index=False)
         buffer.seek(0)
