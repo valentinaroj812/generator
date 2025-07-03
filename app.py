@@ -10,6 +10,7 @@ st.title("🔄 Generador Automático de Equivalencias - CENTURY 21")
 
 excel_file = st.file_uploader("📤 Sube el archivo Excel generado por 21 Online", type=["xlsx"])
 links_file = st.file_uploader("🔗 Sube el archivo .txt con todos los links de oficinas", type=["txt"])
+min_score = st.slider("🎯 Score mínimo de coincidencia", 0, 100, 80)
 
 def obtener_asesores_de_web(links):
     asesores_web = set()
@@ -39,23 +40,30 @@ if excel_file and links_file:
         with st.spinner("🔍 Obteniendo asesores desde la web..."):
             nombres_web = obtener_asesores_de_web(links)
 
-        resultados = []
-        for nombre in nombres_excel:
-            coincidencia = process.extractOne(nombre, nombres_web)
-            if coincidencia:
-                match, score = coincidencia
-                resultados.append([nombre, match if score >= 80 else ""])
-            else:
-                resultados.append([nombre, ""])
+        if not nombres_web:
+            st.error("❌ No se extrajo ningún asesor de los sitios web. Verifica los links y la estructura HTML.")
+        else:
+            st.success(f"✅ {len(nombres_web)} asesores encontrados desde los sitios web.")
+            with st.expander("👀 Ver asesores extraídos"):
+                st.write(nombres_web)
 
-        df_resultado = pd.DataFrame(resultados, columns=["Nombre en Excel", "Nombre en Web"])
-        st.success("✅ Equivalencias generadas correctamente.")
-        st.dataframe(df_resultado)
+            resultados = []
+            for nombre in nombres_excel:
+                coincidencia = process.extractOne(nombre, nombres_web)
+                if coincidencia:
+                    match, score = coincidencia
+                    resultados.append([nombre, match if score >= min_score else "", score])
+                else:
+                    resultados.append([nombre, "", 0])
 
-        buffer = io.BytesIO()
-        df_resultado.to_csv(buffer, index=False)
-        buffer.seek(0)
-        st.download_button("📥 Descargar CSV", buffer, "equivalencias_nombres_sugeridas.csv")
+            df_resultado = pd.DataFrame(resultados, columns=["Nombre en Excel", "Nombre en Web", "Score"])
+            st.success("✅ Equivalencias generadas correctamente.")
+            st.dataframe(df_resultado)
+
+            buffer = io.BytesIO()
+            df_resultado.to_csv(buffer, index=False)
+            buffer.seek(0)
+            st.download_button("📥 Descargar CSV", buffer, "equivalencias_nombres_sugeridas.csv")
 
     except Exception as e:
         st.error(f"❌ Error al procesar archivos: {e}")
