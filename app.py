@@ -1,0 +1,62 @@
+import streamlit as st
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from fuzzywuzzy import process
+import io
+
+st.set_page_config(page_title="Generador de Equivalencias C21", layout="wide")
+st.title("🔄 Generador Automático de Equivalencias - CENTURY 21")
+
+# Subida de archivos
+excel_file = st.file_uploader("📤 Sube el archivo Excel generado por 21 Online", type=["xlsx"])
+links_file = st.file_uploader("🔗 Sube el archivo .txt con todos los links de oficinas", type=["txt"])
+
+# Función para extraer asesores desde la web
+def obtener_asesores_de_web(links):
+    asesores_web = set()
+    for url in links:
+        try:
+            r = requests.get(url, timeout=10)
+            soup = BeautifulSoup(r.content, "html.parser")
+            asesores = soup.select("div.agent-info h5")
+            for a in asesores:
+                nombre = a.text.strip()
+                if nombre:
+                    asesores_web.add(nombre)
+        except Exception as e:
+            st.warning(f"⚠️ Error en {url}: {e}")
+    return list(asesores_web)
+
+if excel_file and links_file:
+    try:
+        df = pd.read_excel(excel_file, skiprows=1)
+        captadores = df["Asesor Captador"].dropna().astype(str).str.strip()
+        colocadores = df["Asesor Colocador"].dropna().astype(str).str.strip()
+        nombres_excel = pd.Series(pd.concat([captadores, colocadores]).unique())
+
+        links = links_file.read().decode("utf-8").splitlines()
+        links = [l.strip() for l in links if l.strip()]
+
+        with st.spinner("🔍 Obteniendo asesores desde la web..."):
+            nombres_web = obtener_asesores_de_web(links)
+
+        resultados = []
+        for nombre in nombres_excel:
+            match, score = process.extractOne(nombre, nombres_web)
+            resultados.append([nombre, match if score >= 80 else ""])
+
+        df_resultado = pd.DataFrame(resultados, columns=["Nombre en Excel", "Nombre en Web"])
+        st.success("✅ Equivalencias generadas correctamente.")
+        st.dataframe(df_resultado)
+
+        # Descargar resultado
+        buffer = io.BytesIO()
+        df_resultado.to_csv(buffer, index=False)
+        buffer.seek(0)
+        st.download_button("📥 Descargar CSV", buffer, "equivalencias_nombres_sugeridas.csv")
+
+    except Exception as e:
+        st.error(f"❌ Error al procesar archivos: {e}")
+else:
+    st.info("Por favor, sube ambos archivos para comenzar.")
